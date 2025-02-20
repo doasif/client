@@ -59,6 +59,16 @@ pub struct ImageBuffer {
     pub buffer: Vec<u8>,
 }
 
+impl core::fmt::Debug for ImageBuffer {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ImageBuffer")
+            .field("width", &self.width)
+            .field("height", &self.height)
+            .field("buffer", &format!("{}bytes", self.buffer.len()))
+            .finish()
+    }
+}
+
 /// The direction of a key or button.
 #[derive(serde::Serialize, serde::Deserialize, Debug, Default, Clone, PartialEq, Eq, Hash)]
 pub enum Direction {
@@ -227,7 +237,7 @@ pub enum InputMessage {
 }
 
 /// Websocket driver output messages.
-#[derive(Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub enum OutputMessage {
     GotScreens(Vec<Screen>),
     GotMainScreen(Screen),

@@ -4,7 +4,12 @@
 use futures_util::{SinkExt, StreamExt};
 use reqwest_websocket::{CloseCode, Message};
 use snafu::prelude::*;
-use winatep_wire_types::{InputMessage, OutputMessage, Screen};
+use winatep_wire_types::{
+    BoundingRectangle, FindImageFilter, FindImageQuality, InputMessage, OutputMessage, Screen,
+    Token, Vec2,
+};
+
+pub use winatep_wire_types::ImageBuffer;
 
 fn display_websocket_err(source: &reqwest_websocket::Error) -> String {
     match source {
@@ -49,14 +54,15 @@ impl From<reqwest_websocket::Error> for Error {
 }
 
 /// Handles the error case of an output message.
-macro_rules! handle_output_message {
-    ($expression:expr, $pattern:pat => $result:ident) => {
-        match $expression {
-            $pattern => Ok($result),
-            OutputMessage::Error(msg) => DriverSnafu { msg }.fail(),
+macro_rules! txrx {
+    ($self:ident, $input:expr, $output:pat => $result:expr) => {{
+        let msg = $self.send($input).await?;
+        match msg {
+            $output => Ok($result),
+            OutputMessage::Error(e) => DriverSnafu { msg: e }.fail(),
             output_message => UnexpectedDriverMessageSnafu { output_message }.fail(),
         }
-    };
+    }};
 }
 
 /// Represents a connection to the WINATEP driver.
@@ -99,7 +105,71 @@ impl Session {
     }
 
     pub async fn get_screens(&mut self) -> Result<Vec<Screen>, Error> {
-        let msg = self.send(InputMessage::GetScreens).await?;
-        handle_output_message!(msg, OutputMessage::GotScreens(screens) => screens)
+        txrx!(self, InputMessage::GetScreens, OutputMessage::GotScreens(screens) => screens)
+    }
+
+    pub async fn get_main_screen(&mut self) -> Result<Screen, Error> {
+        txrx!(self, InputMessage::GetMainScreen, OutputMessage::GotMainScreen(screen) => screen)
+    }
+
+    pub async fn capture_screen(
+        &mut self,
+        screen_name: impl AsRef<str>,
+    ) -> Result<ImageBuffer, Error> {
+        txrx!(
+            self,
+            InputMessage::CaptureScreen {
+                name: screen_name.as_ref().to_string(),
+            },
+            OutputMessage::CapturedScreen { image_buffer } => image_buffer
+        )
+    }
+
+    pub async fn get_mouse_location(&mut self) -> Result<Vec2, Error> {
+        txrx!(self, InputMessage::GetMouseLocation, OutputMessage::GotMouseLocation(loc) => loc)
+    }
+
+    pub async fn input(&mut self, token: Token) -> Result<(), Error> {
+        txrx!(self, InputMessage::DoInput(token), OutputMessage::DidInput => ())
+    }
+
+    pub async fn text(&mut self, text: impl AsRef<str>) -> Result<(), Error> {
+        txrx!(self, InputMessage::DoTypeText(text.as_ref().to_owned()), OutputMessage::DidTypeText => ())
+    }
+
+    pub async fn find_text_in_screen(
+        &mut self,
+        screen_name: impl AsRef<str>,
+        text: impl AsRef<str>,
+        timeout_in_seconds: f32,
+    ) -> Result<Vec<BoundingRectangle>, Error> {
+        txrx!(
+            self,
+            InputMessage::FindText {
+                text: text.as_ref().to_owned(),
+                screen_name: screen_name.as_ref().to_owned(),
+                timeout_in_seconds
+            },
+            OutputMessage::FoundText { locations } => locations
+        )
+    }
+
+    pub async fn find_image_in_screen(
+        &mut self,
+        screen_name: impl AsRef<str>,
+        image: ImageBuffer,
+        quality: FindImageQuality,
+        filter: FindImageFilter,
+    ) -> Result<Vec<BoundingRectangle>, Error> {
+        txrx!(
+            self,
+            InputMessage::FindImage {
+                screen_name: screen_name.as_ref().to_owned(),
+                image,
+                quality,
+                filter
+            },
+            OutputMessage::FoundText { locations } => locations
+        )
     }
 }

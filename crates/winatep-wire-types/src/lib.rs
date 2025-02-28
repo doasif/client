@@ -1,5 +1,9 @@
 //! Wire types.
 
+use glam::UVec2;
+
+pub use glam::Vec2;
+
 pub mod key;
 
 /// Information about an operating system screen or monitor.
@@ -14,15 +18,19 @@ pub struct Screen {
 }
 
 impl Screen {
-    pub fn bounds(&self) -> (glam::Vec2, glam::Vec2) {
+    pub fn bounds(&self) -> BoundingRectangle {
         let x = self.x as f32;
         let y = self.y as f32;
         let width = self.width as f32;
         let height = self.height as f32;
-        (
-            glam::Vec2::new(x, y),
-            glam::Vec2::new(x + width, y + height),
-        )
+        BoundingRectangle {
+            min: glam::Vec2::new(x, y),
+            max: glam::Vec2::new(x + width, y + height),
+        }
+    }
+
+    pub fn contains_abs_point(&self, point: glam::Vec2) -> bool {
+        self.bounds().contains_point(point)
     }
 }
 
@@ -213,10 +221,78 @@ pub enum Token {
     MainDisplay(i32, i32),
 }
 
+/// An axis-aligned bounding rectangle.
 #[derive(Clone, Copy, Debug, Default, serde::Serialize, serde::Deserialize)]
 pub struct BoundingRectangle {
-    pub min: (f32, f32),
-    pub max: (f32, f32),
+    pub min: Vec2,
+    pub max: Vec2,
+}
+
+impl BoundingRectangle {
+    pub fn contains_point(&self, point: glam::Vec2) -> bool {
+        let BoundingRectangle { min, max } = self;
+        min.x <= point.x && min.y <= point.y && max.x >= point.x && max.y >= point.y
+    }
+}
+
+/// Sets the quality rating used to find image sub-images within a screen.
+///
+/// The higher the quality, the more likely a 100% match will be found, but
+/// also the more time it will take to find any matches.
+#[derive(Clone, Copy, Debug, Default, serde::Serialize, serde::Deserialize)]
+pub enum FindImageQuality {
+    #[default]
+    Standard,
+    Specific(u8),
+    Highest,
+}
+
+impl FindImageQuality {
+    pub fn max_level_for_size(width: u32, height: u32) -> u8 {
+        let size = UVec2::new(width, height);
+        let mip_levels = size.min_element().ilog2();
+        mip_levels as u8 - 1
+    }
+}
+
+/// Sets the filter for match results.
+#[derive(Clone, Copy, Debug, Default, serde::Serialize, serde::Deserialize)]
+pub enum FindImageFilter {
+    /// The standard filter level and minimum similarity.
+    #[default]
+    Standard,
+    /// A specific filter level and minimum similarity.
+    ///
+    /// - `level`:
+    ///   Much like [`FindImageQuality`], each increase in the "level" doubles the
+    ///   number of similarity comparisons taken. In other words, the findings
+    ///   returned will be `2^level`.
+    ///
+    ///   This can be used to increase the "resolution" of findings.
+    ///   If two matches occur close together, the search algorithm
+    ///   merges them, taking the more similar of the two, or the
+    ///   top-left of the two in the case of equal similarity.
+    ///   Increasing `level` makes the search less aggressive in
+    ///   merging occurances.
+    ///
+    /// - `minimum_similarity`:
+    ///   Used to filter findings.
+    ///
+    ///   The maximum value for similarity is 1.0, the minimum is 0.0.
+    ///   The default is 1.0.
+    ///
+    ///   Decreasing this value will return more matches, but those matches
+    ///   will have lower visual similarity.
+    Specific { level: u8, minimum_similarity: f32 },
+    /// The maximum filter level and complete similarity.
+    Highest,
+}
+
+impl FindImageFilter {
+    pub fn max_level_for_size(width: u32, height: u32) -> u8 {
+        let mip_levels = width.min(height).ilog2();
+        mip_levels as u8 - 1
+    }
 }
 
 /// Websocket driver input messages.
@@ -229,10 +305,17 @@ pub enum InputMessage {
     },
     GetMouseLocation,
     DoInput(Token),
+    DoTypeText(String),
     FindText {
         text: String,
         screen_name: String,
         timeout_in_seconds: f32,
+    },
+    FindImage {
+        screen_name: String,
+        image: ImageBuffer,
+        quality: FindImageQuality,
+        filter: FindImageFilter,
     },
 }
 
@@ -242,8 +325,10 @@ pub enum OutputMessage {
     GotScreens(Vec<Screen>),
     GotMainScreen(Screen),
     CapturedScreen { image_buffer: ImageBuffer },
-    GotMouseLocation(f32, f32),
+    GotMouseLocation(Vec2),
     DidInput,
+    DidTypeText,
     FoundText { locations: Vec<BoundingRectangle> },
+    FoundImage { locations: Vec<BoundingRectangle> },
     Error(String),
 }

@@ -334,6 +334,8 @@ pub enum InputMessage {
         quality: FindImageQuality,
         filter: FindImageFilter,
     },
+    GetClipboardText,
+    SetClipboardText(String),
 }
 
 /// Websocket driver output messages.
@@ -347,5 +349,7 @@ pub enum OutputMessage {
     DidTypeText,
     FoundText { locations: Vec<BoundingRectangle> },
     FoundImage { locations: Vec<BoundingRectangle> },
+    GotClipboardText(String),
+    DidSetClipboardText,
     Error(String),
 }

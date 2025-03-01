@@ -236,6 +236,20 @@ impl Session {
             OutputMessage::FoundImage { locations } => locations
         )
     }
+
+    #[tracing::instrument(skip_all)]
+    pub async fn get_clipboard_text(&mut self) -> Result<String, Error> {
+        txrx!(self, InputMessage::GetClipboardText, OutputMessage::GotClipboardText(text) => text)
+    }
+
+    #[tracing::instrument(skip_all)]
+    pub async fn set_clipboard_text(&mut self, text: impl AsRef<str>) -> Result<(), Error> {
+        txrx!(
+            self,
+            InputMessage::SetClipboardText(text.as_ref().to_owned()),
+            OutputMessage::DidSetClipboardText => ()
+        )
+    }
 }
 
 /// These are higher-order functionalities of `Session`.

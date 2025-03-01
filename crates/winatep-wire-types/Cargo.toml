@@ -4,6 +4,6 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-glam = {workspace=true}
-schemars = "0.8"
-serde = {workspace=true}
+glam.workspace = true
+image.workspace = true
+serde.workspace = true

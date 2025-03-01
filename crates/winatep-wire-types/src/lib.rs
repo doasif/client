@@ -1,13 +1,13 @@
 //! Wire types.
 
 use glam::UVec2;
-
 pub use glam::Vec2;
 
-pub mod key;
+mod key;
+pub use key::*;
 
-/// Information about an operating system screen or monitor.
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+/// Information about a screen or monitor.
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct Screen {
     pub name: String,
     pub x: usize,
@@ -60,6 +60,8 @@ impl<T> ServerStatus<T> {
 }
 
 /// An image buffer.
+///
+/// The internal representation of the buffer is RGB8.
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub struct ImageBuffer {
     pub width: u32,
@@ -74,6 +76,17 @@ impl core::fmt::Debug for ImageBuffer {
             .field("height", &self.height)
             .field("buffer", &format!("{}bytes", self.buffer.len()))
             .finish()
+    }
+}
+
+impl From<image::DynamicImage> for ImageBuffer {
+    fn from(img: image::DynamicImage) -> Self {
+        let rgb_img = img.into_rgb8();
+        Self {
+            width: rgb_img.width(),
+            height: rgb_img.height(),
+            buffer: rgb_img.to_vec(),
+        }
     }
 }
 
@@ -232,6 +245,10 @@ impl BoundingRectangle {
     pub fn contains_point(&self, point: glam::Vec2) -> bool {
         let BoundingRectangle { min, max } = self;
         min.x <= point.x && min.y <= point.y && max.x >= point.x && max.y >= point.y
+    }
+
+    pub fn center(&self) -> Vec2 {
+        (self.min + self.max) / 2.0
     }
 }
 

@@ -7,15 +7,20 @@ description = "Native and WASM Rust client to the Doasif WINATEP driver"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+async-net.workspace = true
+async-tungstenite = { workspace = true, features = ["async-tls"] }
 futures-util.workspace = true
+glam.workspace = true
 log.workspace = true
-reqwest.workspace = true
-reqwest-websocket.workspace = true
+tracing.workspace = true
+tracing-subscriber = { workspace = true, features = ["env-filter"] }
 serde_json.workspace = true
 snafu.workspace = true
 winatep-wire-types = { path = "../winatep-wire-types" }
 
 [dev-dependencies]
+async-std.workspace = true
 env_logger.workspace = true
 futures-lite.workspace = true
-tokio = { workspace = true, features = ["full"] }
+image.workspace = true
+tracing-perfetto.workspace = true
